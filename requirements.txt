@@ -1,0 +1,16 @@
+# GIK Timetable Scheduler – Python dependencies
+# Install with: pip install -r requirements.txt
+
+# GUI
+customtkinter>=5.2.0
+
+# Excel I/O
+openpyxl>=3.1.0
+pandas>=2.0.0
+xlrd>=2.0.0          # needed by pandas for .xls (older Excel) support
+
+# Optional: OR-Tools solver (fallback to CSP if not installed)
+# ortools>=9.7.0
+
+# Type hints (Python < 3.10 compatibility)
+typing_extensions>=4.0.0

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.eggs/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project artefacts
+output/_pdf_dump.txt
+data/_pdf_dump.txt
+output/*.xlsx
+!output/.gitkeep
+
+# Temp
+*.log
+*.tmp
