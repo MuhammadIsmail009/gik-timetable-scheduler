@@ -174,48 +174,61 @@ class Sidebar(ctk.CTkFrame):
 
         # ── Brand ─────────────────────────────────────────────────────────────
         brand = ctk.CTkFrame(self, fg_color="transparent")
-        brand.grid(row=0, column=0, sticky="ew", padx=24, pady=(28, 0))
+        brand.grid(row=0, column=0, sticky="ew", padx=12, pady=(32, 0))
 
-        # GIK logo (if Pillow + image are available)
+        # GIK logo — centered inside a subtle highlight badge
         if Image is not None and LOGO_PATH.exists():
             try:
                 pil_img = Image.open(LOGO_PATH).convert("RGBA")
                 self._logo_image = ctk.CTkImage(
                     light_image=pil_img,
                     dark_image=pil_img,
-                    size=(64, 64),
+                    size=(96, 96),
                 )
-                ctk.CTkLabel(
+
+                # Soft circular halo behind the logo
+                halo = ctk.CTkFrame(
                     brand,
+                    fg_color="#1C1F25",          # slightly lighter than sidebar
+                    corner_radius=64,
+                    border_width=1,
+                    border_color=COLORS["sidebar_accent"],   # gold ring
+                    width=120, height=120,
+                )
+                halo.pack(anchor="center", pady=(0, 14))
+                halo.pack_propagate(False)
+
+                ctk.CTkLabel(
+                    halo,
                     image=self._logo_image,
                     text="",
-                ).pack(anchor="w", pady=(0, 8))
+                ).place(relx=0.5, rely=0.5, anchor="center")
             except Exception:
                 pass
 
-        # Small gold accent mark
+        # Small gold accent bar (centered)
         accent_row = ctk.CTkFrame(brand, fg_color="transparent")
-        accent_row.pack(anchor="w", pady=(0, 8))
+        accent_row.pack(anchor="center", pady=(0, 8))
         ctk.CTkFrame(
             accent_row,
-            width=24, height=2,
+            width=32, height=2,
             fg_color=COLORS["sidebar_accent"],
             corner_radius=1,
-        ).pack(anchor="w")
+        ).pack(anchor="center")
 
         ctk.CTkLabel(
             brand,
             text="Ghulam Ishaq Khan",
             font=ctk.CTkFont(family="Georgia", size=15, weight="normal"),
             text_color=COLORS["sidebar_active"],
-        ).pack(anchor="w")
+        ).pack(anchor="center")
 
         ctk.CTkLabel(
             brand,
             text="Scheduler",
             font=ctk.CTkFont(family="Georgia", size=15, slant="italic"),
             text_color=COLORS["sidebar_text"],
-        ).pack(anchor="w", pady=(0, 2))
+        ).pack(anchor="center", pady=(0, 2))
 
         # ── Divider ───────────────────────────────────────────────────────────
         ctk.CTkFrame(

@@ -1,25 +1,29 @@
 """
 timetable_view.py
 Semester timetable rendered as a recurring weekly room x slot grid grouped by
-building, mirroring the exporter (which mirrors the GIK Spring 2026 PDF).
-Friday uses a different morning slot grid (10:00 / 11:00 / 12:00) per the PDF.
+building and day, mirroring the Excel exporter (which mirrors the GIK Spring
+2026 PDF). Friday uses a different morning slot grid (10:00 / 11:00 / 12:00)
+per the PDF.
+
+Rendering uses plain tkinter widgets (tk.Label / tk.Frame) instead of
+CustomTkinter wrappers. With ~50 rooms x 5 days x 8 slots = ~2500 cells per
+render, CTk widgets create a noticeable blank-screen delay; tk widgets are
+single C-level widgets and complete the same render in a fraction of a second.
 """
 
 import tkinter as tk
 from tkinter import messagebox
+
 import customtkinter as ctk
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
-# Mon-Thu slot order
 SLOTS_WEEKDAY = [
     "08:00–08:50", "09:00–09:50",
     "10:30–11:20", "11:30–12:20", "12:30–13:20",
     "14:30–15:20", "15:30–16:20", "16:30–17:20",
 ]
 
-# Friday's morning is shifted earlier per the PDF (no breakfast break,
-# Jumu'ah breaks the day later instead).
 SLOTS_FRIDAY = [
     "08:00–08:50", "09:00–09:50",
     "10:00–10:50", "11:00–11:50", "12:00–12:50",
@@ -32,7 +36,7 @@ def slots_for_day(day: str) -> list[str]:
 
 
 # Building -> static room list, verified against PDF and the exporter.
-# The Labs sub-section is appended dynamically based on actual assignments.
+# Labs sub-section appended dynamically based on actual virtual rooms used.
 BUILDING_ROOMS = [
     ("FCSE / FEE", [
         "CS LH1", "CS LH2", "CS LH3", "CS LH4", "FCSE - SE Lab",
@@ -63,7 +67,6 @@ BUILDING_ROOMS = [
 
 ALL_STATIC_ROOMS = {r for _, rs in BUILDING_ROOMS for r in rs}
 
-# Department fill colours
 DEPT_FILLS = {
     "CS": "#DBEAFE", "CE": "#D1FAE5", "EE": "#FEF9C3",
     "ME": "#EDE9FE", "CV": "#FFE4E6", "AI": "#CFFAFE",
@@ -89,6 +92,21 @@ DEPT_TEXT = {
 def _dept(code: str) -> tuple[str, str]:
     prefix = code[:2].upper()
     return DEPT_FILLS.get(prefix, DEPT_FILLS["_"]), DEPT_TEXT.get(prefix, DEPT_TEXT["_"])
+
+
+# Layout constants
+BLDG_W   = 80
+ROOM_W   = 110
+CELL_W   = 130
+CELL_H   = 30
+HDR_H    = 28
+DAY_H    = 32
+
+FONT_SLOT = ("Segoe UI", 9)
+FONT_ROOM = ("Segoe UI", 9)
+FONT_BLDG = ("Segoe UI", 8)
+FONT_CELL = ("Segoe UI", 8, "bold")
+FONT_DAY  = ("Segoe UI", 11, "bold")
 
 
 class TimetableView(ctk.CTkFrame):
@@ -137,7 +155,7 @@ class TimetableView(ctk.CTkFrame):
             dropdown_fg_color=self.C["bg_surface"],
             dropdown_text_color=self.C["text_primary"],
             font=self.F["small"],
-            command=lambda _: self._render(),
+            command=lambda _: self._render_async(),
         )
         self._day_menu.grid(row=0, column=1, padx=(0, 16), pady=10)
 
@@ -159,7 +177,7 @@ class TimetableView(ctk.CTkFrame):
             dropdown_fg_color=self.C["bg_surface"],
             dropdown_text_color=self.C["text_primary"],
             font=self.F["small"],
-            command=lambda _: self._render(),
+            command=lambda _: self._render_async(),
         )
         self._bldg_menu.grid(row=0, column=3, padx=(0, 16), pady=10, sticky="w")
 
@@ -209,18 +227,22 @@ class TimetableView(ctk.CTkFrame):
             text_color=self.C["text_muted"],
         ).pack(pady=(4, 0))
 
-        self._scroll: ctk.CTkScrollableFrame | None = None
+        # Loading overlay (used during render)
+        self._loading: ctk.CTkFrame | None = None
+        self._scroll_outer: ctk.CTkScrollableFrame | None = None
+        self._scroll_canvas_host: tk.Frame | None = None
 
-    # ── Data Loading ─────────────────────────────────────────────────────────
+    # ── Data loading ─────────────────────────────────────────────────────────
 
     def load_data(self, data: list[dict], report: dict = {}):
         self._data = data
         self._empty.grid_remove()
 
-        if self._scroll:
-            self._scroll.destroy()
+        if self._scroll_outer:
+            self._scroll_outer.destroy()
 
-        self._scroll = ctk.CTkScrollableFrame(
+        # Outer CTk scrollable container
+        self._scroll_outer = ctk.CTkScrollableFrame(
             self,
             corner_radius=8,
             fg_color=self.C["bg_surface"],
@@ -230,13 +252,52 @@ class TimetableView(ctk.CTkFrame):
             scrollbar_button_hover_color=self.C["accent"],
             orientation="vertical",
         )
-        self._scroll.grid(row=2, column=0, sticky="nsew")
-        self._render()
+        self._scroll_outer.grid(row=2, column=0, sticky="nsew")
+        # Inner host frame uses plain tk for fast widget creation
+        self._scroll_canvas_host = tk.Frame(
+            self._scroll_outer, bg=self.C["bg_surface"]
+        )
+        self._scroll_canvas_host.pack(fill="both", expand=True, padx=8, pady=8)
+
+        self._render_async()
+
+    # ── Async render (so the UI shows a loading state instead of freezing) ──
+
+    def _render_async(self):
+        if not self._scroll_canvas_host:
+            return
+        # Show a quick "Rendering..." flash, then build on idle
+        self._show_loading("Rendering timetable...")
+        self.after(30, self._render)
+
+    def _show_loading(self, text: str):
+        if self._loading:
+            try:
+                self._loading.destroy()
+            except Exception:
+                pass
+        self._loading = ctk.CTkFrame(
+            self,
+            fg_color=self.C["bg_surface"],
+            corner_radius=8,
+        )
+        self._loading.place(in_=self._scroll_outer, relx=0.5, rely=0.05, anchor="n")
+        ctk.CTkLabel(
+            self._loading, text=text,
+            font=self.F["small"], text_color=self.C["text_secondary"],
+        ).pack(padx=18, pady=8)
+
+    def _hide_loading(self):
+        if self._loading:
+            try:
+                self._loading.destroy()
+            except Exception:
+                pass
+            self._loading = None
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     def _virtual_lab_rooms_used(self) -> list[str]:
-        """Lab rooms that show up in assignments but aren't in the static grid."""
         seen: set[str] = set()
         for item in self._data:
             if not item.get("is_lab"):
@@ -257,13 +318,15 @@ class TimetableView(ctk.CTkFrame):
 
         return sorted(seen, key=sort_key)
 
-    # ── Grid Rendering ───────────────────────────────────────────────────────
+    # ── Grid render (per-day blocks, plain tk widgets) ───────────────────────
 
     def _render(self):
-        if not self._scroll:
+        host = self._scroll_canvas_host
+        if not host:
             return
 
-        for w in self._scroll.winfo_children():
+        # Clear previous content
+        for w in host.winfo_children():
             w.destroy()
 
         day_filter  = self._filter_day.get()
@@ -271,158 +334,118 @@ class TimetableView(ctk.CTkFrame):
 
         days_to_show = [d for d in DAYS if day_filter == "All Days" or d == day_filter]
 
-        # Build lookup: (day, slot, room) -> list[course text]
+        # Build lookup
         lookup: dict[tuple, list[str]] = {}
         for item in self._data:
             key = (item["day"], item["slot"], item["room"])
             text = f"{item['course']} {item['section']}"
             lookup.setdefault(key, []).append(text)
 
-        session_count = sum(len(v) for v in lookup.values())
+        session_count = sum(
+            len(v) for k, v in lookup.items() if k[0] in days_to_show
+        )
         self._stats.configure(
             text=f"{session_count} sessions  •  {len(days_to_show)} day(s)"
         )
 
-        # Build the union slot grid: any slot that appears for any visible day.
-        # Fr days share most columns with Mon-Thu; Friday adds 10:00/11:00/12:00.
-        slot_set: list[str] = []
-        for d in days_to_show:
-            for s in slots_for_day(d):
-                if s not in slot_set:
-                    slot_set.append(s)
-
-        def _norm(t: str) -> int:
-            hh, mm = t.split("–")[0].split(":")
-            return int(hh) * 60 + int(mm)
-
-        slot_set.sort(key=_norm)
-
-        # Layout dimensions
-        ROOM_W  = 110
-        BLDG_W  = 88
-        CELL_W  = 130
-        CELL_H  = 36
-        HDR_H   = 30
-
-        col_offset = 2  # col 0 = building, col 1 = room
-
-        # ── Header row (sticky-ish via being row 0) ──────────────────────────
-        ctk.CTkLabel(
-            self._scroll, text="Building",
-            font=self.F["label"], text_color=self.C["text_muted"],
-            fg_color=self.C["bg_muted"], corner_radius=4,
-            width=BLDG_W, height=HDR_H,
-        ).grid(row=0, column=0, padx=1, pady=1, sticky="w")
-
-        ctk.CTkLabel(
-            self._scroll, text="Room",
-            font=self.F["label"], text_color=self.C["text_muted"],
-            fg_color=self.C["bg_muted"], corner_radius=4,
-            width=ROOM_W, height=HDR_H,
-        ).grid(row=0, column=1, padx=1, pady=1, sticky="w")
-
-        col = col_offset
-        col_to_day_slot: dict[int, tuple[str, str]] = {}
-        for day in days_to_show:
-            for slot in slot_set:
-                # Greyed out if slot doesn't apply to this day
-                applies = slot in slots_for_day(day)
-                if applies:
-                    bg = self.C["bg_muted"]
-                    fg = self.C["text_secondary"]
-                else:
-                    bg = "#EDEEF1"
-                    fg = self.C["text_muted"]
-
-                lbl = ctk.CTkLabel(
-                    self._scroll,
-                    text=f"{day[:3]}\n{slot[:5]}",
-                    font=self.F["tiny"],
-                    text_color=fg,
-                    fg_color=bg,
-                    corner_radius=4,
-                    width=CELL_W, height=HDR_H,
-                )
-                lbl.grid(row=0, column=col, padx=1, pady=1, sticky="ew")
-                col_to_day_slot[col] = (day, slot)
-                col += 1
-
-        # ── Compose room list with dynamic Labs section ──────────────────────
+        # Compose room list with dynamic Labs section
         groups = list(BUILDING_ROOMS)
         virtual_labs = self._virtual_lab_rooms_used()
         if virtual_labs:
             groups.append(("Labs", virtual_labs))
 
-        # ── Room rows ────────────────────────────────────────────────────────
-        grid_row = 1
+        # Filter groups
+        if bldg_filter != "All Buildings":
+            groups = [(b, rs) for b, rs in groups if b == bldg_filter]
 
+        # Render one block per day
+        for day in days_to_show:
+            self._render_day_block(host, day, groups, lookup)
+            # Spacer between day blocks
+            tk.Frame(host, bg=self.C["bg_surface"], height=14).pack(fill="x")
+
+        self._hide_loading()
+
+    def _render_day_block(self, host: tk.Frame, day: str,
+                          groups: list[tuple[str, list[str]]],
+                          lookup: dict[tuple, list[str]]):
+        slots = slots_for_day(day)
+        n_cols = 2 + len(slots)  # building + room + slots
+
+        block = tk.Frame(host, bg=self.C["bg_surface"])
+        block.pack(fill="x", anchor="w")
+
+        # Day header (full width, bold navy)
+        day_header = tk.Label(
+            block,
+            text=day.upper(),
+            bg=self.C["accent"],
+            fg="#FFFFFF",
+            font=FONT_DAY,
+            anchor="w",
+            padx=12,
+        )
+        day_header.grid(row=0, column=0, columnspan=n_cols, sticky="ew",
+                        pady=(0, 1), ipady=4)
+
+        # Slot header row
+        tk.Label(block, text="Building", bg=self.C["bg_muted"],
+                 fg=self.C["text_muted"], font=FONT_BLDG, width=10, height=2,
+                 anchor="w", padx=4
+        ).grid(row=1, column=0, sticky="nsew", padx=1, pady=1)
+        tk.Label(block, text="Room", bg=self.C["bg_muted"],
+                 fg=self.C["text_muted"], font=FONT_BLDG, width=14, height=2,
+                 anchor="w", padx=4
+        ).grid(row=1, column=1, sticky="nsew", padx=1, pady=1)
+
+        for ci, slot in enumerate(slots, start=2):
+            tk.Label(block, text=slot,
+                     bg=self.C["bg_muted"], fg=self.C["text_secondary"],
+                     font=FONT_SLOT, width=15, height=2,
+                     ).grid(row=1, column=ci, sticky="nsew", padx=1, pady=1)
+
+        # Room rows
+        row_idx = 2
         for bldg, rooms in groups:
-            if bldg_filter != "All Buildings" and bldg != bldg_filter:
-                continue
-
             for room_idx, room in enumerate(rooms):
                 bldg_text = bldg if room_idx == 0 else ""
-                ctk.CTkLabel(
-                    self._scroll,
-                    text=bldg_text,
-                    font=self.F["tiny"],
-                    text_color=self.C["text_muted"],
-                    anchor="w",
-                    width=BLDG_W,
-                ).grid(row=grid_row, column=0, padx=(4, 0), pady=1, sticky="w")
 
-                ctk.CTkLabel(
-                    self._scroll,
-                    text=room,
-                    font=self.F["small"],
-                    text_color=self.C["text_primary"],
-                    fg_color=self.C["bg_muted"],
-                    corner_radius=4,
-                    anchor="w",
-                    width=ROOM_W,
-                ).grid(row=grid_row, column=1, padx=1, pady=1, sticky="ew")
+                tk.Label(block, text=bldg_text,
+                         bg=self.C["bg_surface"], fg=self.C["text_muted"],
+                         font=FONT_BLDG, anchor="w", padx=4, width=10,
+                         ).grid(row=row_idx, column=0, sticky="nsew", padx=1, pady=1)
 
-                col = col_offset
-                for day in days_to_show:
-                    for slot in slot_set:
-                        applies = slot in slots_for_day(day)
-                        entries = lookup.get((day, slot, room), []) if applies else []
+                tk.Label(block, text=room,
+                         bg=self.C["bg_muted"], fg=self.C["text_primary"],
+                         font=FONT_ROOM, anchor="w", padx=6, width=14,
+                         ).grid(row=row_idx, column=1, sticky="nsew", padx=1, pady=1)
 
-                        if entries:
-                            text = " / ".join(entries)
-                            bg, fg = _dept(entries[0].split()[0])
-                            cell = ctk.CTkLabel(
-                                self._scroll,
-                                text=text,
-                                font=self.F["tiny"],
-                                text_color=fg,
-                                fg_color=bg,
-                                corner_radius=4,
-                                width=CELL_W, height=CELL_H,
-                                wraplength=CELL_W - 6,
-                            )
-                        else:
-                            # Slot doesn't apply -> dim grey; otherwise empty white
-                            cell_bg = "#F0F1F4" if not applies else self.C["bg_surface"]
-                            cell = ctk.CTkLabel(
-                                self._scroll,
-                                text="",
-                                fg_color=cell_bg,
-                                corner_radius=0,
-                                width=CELL_W, height=CELL_H,
-                            )
-                        cell.grid(row=grid_row, column=col, padx=1, pady=1, sticky="ew")
-                        col += 1
+                for ci, slot in enumerate(slots, start=2):
+                    entries = lookup.get((day, slot, room), [])
+                    if entries:
+                        text = " / ".join(entries)
+                        bg, fg = _dept(entries[0].split()[0])
+                        # Truncate long text to keep cell single-line
+                        if len(text) > 22:
+                            text = text[:20] + "…"
+                        tk.Label(block, text=text,
+                                 bg=bg, fg=fg, font=FONT_CELL,
+                                 width=15,
+                                 ).grid(row=row_idx, column=ci,
+                                        sticky="nsew", padx=1, pady=1)
+                    else:
+                        tk.Label(block, text="",
+                                 bg=self.C["bg_surface"], width=15,
+                                 ).grid(row=row_idx, column=ci,
+                                        sticky="nsew", padx=1, pady=1)
 
-                grid_row += 1
+                row_idx += 1
 
-            # Separator between groups
-            ctk.CTkFrame(
-                self._scroll, height=2, fg_color=self.C["border"]
-            ).grid(row=grid_row, column=0,
-                   columnspan=col_offset + len(days_to_show) * len(slot_set),
-                   sticky="ew", pady=2)
-            grid_row += 1
+            # Building separator row
+            tk.Frame(block, bg=self.C["border"], height=2).grid(
+                row=row_idx, column=0, columnspan=n_cols, sticky="ew", pady=(2, 2)
+            )
+            row_idx += 1
 
     # ── Export ───────────────────────────────────────────────────────────────
 
