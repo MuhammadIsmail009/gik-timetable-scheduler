@@ -46,7 +46,7 @@ class UploadPanel(ctk.CTkFrame):
         # ── Display headline ──────────────────────────────────────────────────
         ctk.CTkLabel(
             center,
-            text="Generate the weekly schedule.",
+            text="Generate the semester schedule.",
             font=ctk.CTkFont(family="Georgia", size=34, weight="normal"),
             text_color=self.C["text_primary"],
         ).grid(row=1, column=0)

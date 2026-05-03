@@ -1,8 +1,10 @@
 # GIK Timetable Scheduler
 
-Automated weekly timetable generator for GIK Institute, built for the
-Spring 2026 catalogue. Greedy CSP solver with PDF-aware room/slot rules,
-a CustomTkinter GUI, and an Excel exporter that mirrors the official
+Automated semester timetable generator for GIK Institute, built for the
+Spring 2026 catalogue. The semester schedule is published as a recurring
+weekly grid (Mon–Fri) that every teaching week of the semester follows.
+Implemented as a greedy CSP solver with PDF-aware room/slot rules, a
+CustomTkinter GUI, and an Excel exporter that mirrors the official
 timetable layout.
 
 ## Quick start
@@ -37,7 +39,7 @@ src/
 gui/
   main_window.py              # root shell, sidebar, top bar
   upload_panel.py             # one-click generate flow
-  timetable_view.py           # weekly grid render
+  timetable_view.py           # semester grid render (recurring weekly view)
   stats_view.py               # per-day / per-building statistics
 data/                         # input course list + GIK reference PDF
 report/                       # IEEE project report (.docx)

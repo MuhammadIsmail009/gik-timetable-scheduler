@@ -82,7 +82,7 @@ FONTS: dict = {}
 # ── Navigation Items ──────────────────────────────────────────────────────────
 NAV_ITEMS = [
     ("upload",    "Generate",   "Generate timetable"),
-    ("timetable", "Timetable",  "View weekly grid"),
+    ("timetable", "Timetable",  "View semester schedule"),
     ("stats",     "Statistics", "Session analytics"),
 ]
 
@@ -336,7 +336,7 @@ class MainWindow(ctk.CTk):
         self._views:       dict[str, ctk.CTkFrame] = {}
         self._view_titles: dict[str, str] = {
             "upload":    "Generate Timetable",
-            "timetable": "Weekly Timetable",
+            "timetable": "Semester Timetable",
             "stats":     "Statistics",
         }
 

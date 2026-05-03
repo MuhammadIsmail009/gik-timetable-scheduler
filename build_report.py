@@ -165,7 +165,7 @@ add_para(doc, "Ghulam Ishaq Khan Institute of Engineering Sciences and Technolog
 add_para(doc, "Faculty of Computer Science and Engineering",
          size=11, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=14)
 
-add_para(doc, "Automated Weekly Timetable Generation for GIK Institute",
+add_para(doc, "Automated Semester Timetable Generation for GIK Institute",
          size=18, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER,
          space_before=10, space_after=4)
 add_para(doc, "A Constraint-Driven Greedy Scheduling Approach",
@@ -198,7 +198,7 @@ body_section.left_margin   = Inches(0.6)
 body_section.right_margin  = Inches(0.6)
 set_columns(body_section, 2)
 
-add_para(doc, "Automated Weekly Timetable Generation for GIK Institute",
+add_para(doc, "Automated Semester Timetable Generation for GIK Institute",
          size=14, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
 add_para(doc,
          "Ismail Waqar (2023453), Abubakar (2023352), Usman (2023581), Ali Muntazir (2023098)",
@@ -212,16 +212,18 @@ ab.paragraph_format.line_spacing = 1.15
 r1 = ab.add_run("Abstract—")
 r1.bold = True; r1.italic = True; r1.font.size = Pt(9); r1.font.name = "Times New Roman"
 r2 = ab.add_run(
-    "Manually preparing the GIK Institute weekly timetable is a slow, error-prone exercise. "
-    "It involves placing roughly 460 course sections into a fixed grid of rooms and time slots while "
-    "preventing teachers, classrooms, and student groups from clashing. We present an automated scheduler "
-    "built around a greedy constraint-satisfaction routine that orders course sessions by how tightly "
-    "constrained they are, then drops each one into the highest-scoring (slot, room) pair its domain still "
-    "allows. Our implementation handles 462 sections (1015 individual session-slots) from the actual Spring "
-    "2026 catalogue in 0.6 seconds on a laptop, with no room conflicts, no instructor double-bookings, and "
-    "no course scheduled twice on the same day. The output Excel file mirrors the layout of the institute's "
-    "official timetable PDF. The work was guided by reverse-engineering that PDF, which exposed several "
-    "non-obvious institutional rules our first algorithm version missed."
+    "Manually preparing the GIK Institute semester timetable is a slow, error-prone exercise. The "
+    "schedule is published once per semester as a recurring weekly grid that all five working days "
+    "follow, and it involves placing roughly 460 course sections into a fixed pattern of rooms and "
+    "time slots while preventing teachers, classrooms, and student groups from clashing. We present "
+    "an automated scheduler built around a greedy constraint-satisfaction routine that orders course "
+    "sessions by how tightly constrained they are, then drops each one into the highest-scoring "
+    "(slot, room) pair its domain still allows. Our implementation handles 462 sections (1015 "
+    "individual session-slots) from the actual Spring 2026 catalogue in 0.6 seconds on a laptop, "
+    "with no room conflicts, no instructor double-bookings, and no course scheduled twice on the "
+    "same day. The output Excel file mirrors the layout of the institute's official timetable PDF. "
+    "The work was guided by reverse-engineering that PDF, which exposed several non-obvious "
+    "institutional rules our first algorithm version missed."
 )
 r2.italic = True; r2.font.size = Pt(9); r2.font.name = "Times New Roman"
 
@@ -236,9 +238,10 @@ rt.italic = True; rt.font.size = Pt(9); rt.font.name = "Times New Roman"
 add_heading(doc, "I.  Problem Definition", 1)
 add_body(doc,
     "Every semester at GIK Institute, the Director of Admissions and Examinations releases a printed "
-    "weekly timetable that places hundreds of course sections into a grid of physical rooms and 50-minute "
-    "slots running from 8 a.m. through 5:20 p.m., Monday to Friday. The current process of preparing this "
-    "grid is largely manual. A staff member edits a master spreadsheet, watches out for clashes by hand, "
+    "semester timetable that places hundreds of course sections into a recurring weekly grid of "
+    "physical rooms and 50-minute slots running from 8 a.m. through 5:20 p.m., Monday to Friday. The "
+    "same pattern is then followed for every week of the semester. The current process of preparing "
+    "this grid is largely manual. A staff member edits a master spreadsheet, watches out for clashes by hand, "
     "and reflows the schedule whenever a conflict turns up. With around 460 sections to place and seven "
     "separate faculty buildings to keep straight, it is easy for a small mistake to snowball into a series "
     "of corrections.")
@@ -246,7 +249,7 @@ add_body(doc,
 add_body(doc,
     "The aim of this project is to automate that work. Given a list of courses (each with credit hours, "
     "instructor, expected enrolment, and section identifier) and a list of available rooms, the program "
-    "must produce a weekly timetable that respects every hard institutional rule and tries to do well on "
+    "must produce a semester timetable that respects every hard institutional rule and tries to do well on "
     "a handful of softer goals like avoiding gaps for students and not stacking long lecture chains on a "
     "single instructor. The official Spring 2026 PDF was the reference for the structural rules — for "
     "instance, that Friday morning runs on a slightly different time grid because of Jumuʼah, or that "

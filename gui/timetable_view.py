@@ -1,8 +1,8 @@
 """
 timetable_view.py
-Weekly timetable displayed as a room x slot grid grouped by building, mirroring
-the exporter (which mirrors the GIK Spring 2026 PDF). Friday uses a different
-morning slot grid (10:00 / 11:00 / 12:00) per the PDF.
+Semester timetable rendered as a recurring weekly room x slot grid grouped by
+building, mirroring the exporter (which mirrors the GIK Spring 2026 PDF).
+Friday uses a different morning slot grid (10:00 / 11:00 / 12:00) per the PDF.
 """
 
 import tkinter as tk
